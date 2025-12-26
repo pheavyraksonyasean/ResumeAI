@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   MapPin,
   DollarSign,
@@ -7,79 +8,105 @@ import {
   Users,
   Zap,
   AlertCircle,
+  Loader2,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { useState } from "react";
 import { JobDetailsModal } from "@/components/job-details-modal";
+import Link from "next/link";
+
+interface JobMatch {
+  jobId: string;
+  title: string;
+  company: string;
+  location: string;
+  salary: {
+    min: number;
+    max: number;
+    currency: string;
+  };
+  type: string;
+  description: string;
+  requirements: string[];
+  postedDate: string;
+  matchScore: number;
+  matchType: "High" | "Medium" | "Low";
+  compatibility: number;
+  matchingSkills: string[];
+  missingSkills: string[];
+  applicantCount: number;
+}
+
+interface Stats {
+  totalMatches: number;
+  highMatches: number;
+  mediumMatches: number;
+  lowMatches: number;
+  avgMatchScore: number;
+}
 
 export default function JobMatchesPage() {
   const [activeFilter, setActiveFilter] = useState("all");
-  const [selectedJob, setSelectedJob] = useState<number | null>(null);
+  const [selectedJob, setSelectedJob] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<JobMatch[]>([]);
+  const [stats, setStats] = useState<Stats>({
+    totalMatches: 0,
+    highMatches: 0,
+    mediumMatches: 0,
+    lowMatches: 0,
+    avgMatchScore: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [noResume, setNoResume] = useState(false);
+
+  useEffect(() => {
+    fetchMatches();
+  }, []);
+
+  const fetchMatches = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/matches");
+      const data = await response.json();
+
+      if (data.success) {
+        setJobs(data.matches || []);
+        setStats(
+          data.stats || {
+            totalMatches: 0,
+            highMatches: 0,
+            mediumMatches: 0,
+            lowMatches: 0,
+            avgMatchScore: 0,
+          }
+        );
+        setNoResume(false);
+      } else {
+        if (
+          data.message?.includes("No resume found") ||
+          data.message?.includes("not analyzed")
+        ) {
+          setNoResume(true);
+        }
+        setError(data.message);
+      }
+    } catch (err) {
+      console.error("Error fetching matches:", err);
+      setError("Failed to fetch job matches");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filters = [
-    { id: "all", label: "All Jobs", count: 5 },
-    { id: "high", label: "High Match", count: 3 },
-    { id: "medium", label: "Medium Match", count: 2 },
-  ];
-
-  const jobs = [
+    { id: "all", label: "All Jobs", count: stats.totalMatches },
+    { id: "high", label: "High Match", count: stats.highMatches },
     {
-      id: 1,
-      title: "Senior Frontend Developer",
-      company: "TechCorp Inc.",
-      location: "San Francisco, CA",
-      salary: "$120k - $160k",
-      type: "Full-time",
-      date: "12/20/2024",
-      applicants: "45 applicants",
-      description:
-        "We are looking for an experienced frontend developer to join our team and build amazing user experiences.",
-      matchScore: 92,
-      matchType: "High",
-      compatibility: 92,
-      matchingSkills: ["React", "TypeScript", "JavaScript", "CSS", "Git"],
-      skillsToLearn: ["GraphQL", "Next.js"],
-    },
-    {
-      id: 2,
-      title: "Full Stack Developer",
-      company: "StartupXYZ",
-      location: "Remote",
-      salary: "$100k - $140k",
-      type: "Full-time",
-      date: "12/18/2024",
-      applicants: "32 applicants",
-      description:
-        "Join our fast-growing startup and help us build scalable web applications from the ground up.",
-      matchScore: 85,
-      matchType: "High",
-      compatibility: 85,
-      matchingSkills: [
-        "JavaScript",
-        "React",
-        "Node.js",
-        "MongoDB",
-        "REST APIs",
-      ],
-      skillsToLearn: ["Docker", "Kubernetes", "AWS"],
-    },
-    {
-      id: 3,
-      title: "React Developer",
-      company: "Digital Solutions",
-      location: "New York, NY",
-      salary: "$90k - $130k",
-      type: "Full-time",
-      date: "12/15/2024",
-      applicants: "67 applicants",
-      description:
-        "Looking for a React developer to build modern web applications for our enterprise clients.",
-      matchScore: 78,
-      matchType: "Medium",
-      compatibility: 78,
-      matchingSkills: ["React", "JavaScript", "HTML", "CSS", "Agile"],
-      skillsToLearn: ["Redux", "Testing Library", "Webpack"],
+      id: "medium",
+      label: "Medium Match",
+      count: stats.mediumMatches + stats.lowMatches,
     },
   ];
 
@@ -87,8 +114,81 @@ export default function JobMatchesPage() {
     activeFilter === "all"
       ? jobs
       : jobs.filter((job) =>
-          activeFilter === "high" ? job.matchScore >= 85 : job.matchScore < 85
+          activeFilter === "high" ? job.matchScore >= 80 : job.matchScore < 80
         );
+
+  const formatSalary = (salary: {
+    min: number;
+    max: number;
+    currency: string;
+  }) => {
+    if (!salary || !salary.min || !salary.max) return "Not specified";
+    return `$${Math.floor(salary.min / 1000)}k - $${Math.floor(
+      salary.max / 1000
+    )}k`;
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-green-500" />
+      </div>
+    );
+  }
+
+  // No resume state
+  if (noResume) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Job Matches</h1>
+          <p className="text-gray-400">Based on your skills and experience</p>
+        </div>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <FileText className="w-16 h-16 text-gray-600 mb-4" />
+          <h2 className="text-xl font-semibold mb-2">No Resume Found</h2>
+          <p className="text-gray-400 mb-6 max-w-md">
+            Upload your resume first to see job matches based on your skills and
+            experience.
+          </p>
+          <Link href="/dashboard/upload">
+            <Button className="bg-green-600 hover:bg-green-700">
+              Upload Resume
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // No jobs state
+  if (jobs.length === 0) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Job Matches</h1>
+          <p className="text-gray-400">Based on your skills and experience</p>
+        </div>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Users className="w-16 h-16 text-gray-600 mb-4" />
+          <h2 className="text-xl font-semibold mb-2">No Job Postings Yet</h2>
+          <p className="text-gray-400 max-w-md">
+            There are no active job postings at the moment. Check back later for
+            new opportunities!
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -102,19 +202,21 @@ export default function JobMatchesPage() {
       <div className="grid grid-cols-4 gap-4">
         <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
           <p className="text-sm text-gray-400 mb-2">Total Matches</p>
-          <p className="text-3xl font-bold">5</p>
+          <p className="text-3xl font-bold">{stats.totalMatches}</p>
         </div>
         <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
-          <p className="text-sm text-gray-400 mb-2">High Match (85%+)</p>
-          <p className="text-3xl font-bold">3</p>
+          <p className="text-sm text-gray-400 mb-2">High Match (80%+)</p>
+          <p className="text-3xl font-bold">{stats.highMatches}</p>
         </div>
         <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
-          <p className="text-sm text-gray-400 mb-2">Medium Match (70-84%)</p>
-          <p className="text-3xl font-bold">2</p>
+          <p className="text-sm text-gray-400 mb-2">Medium Match (60-79%)</p>
+          <p className="text-3xl font-bold">{stats.mediumMatches}</p>
         </div>
         <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4">
           <p className="text-sm text-gray-400 mb-2">Avg Match Score</p>
-          <p className="text-3xl font-bold text-green-400">83%</p>
+          <p className="text-3xl font-bold text-green-400">
+            {stats.avgMatchScore}%
+          </p>
         </div>
       </div>
 
@@ -139,7 +241,7 @@ export default function JobMatchesPage() {
       <div className="space-y-6">
         {filteredJobs.map((job) => (
           <div
-            key={job.id}
+            key={job.jobId}
             className="rounded-lg border border-gray-800 bg-gray-900/50 p-6"
           >
             {/* Job Header */}
@@ -150,7 +252,7 @@ export default function JobMatchesPage() {
               </div>
               <div className="text-right">
                 <div className="text-3xl font-bold text-green-400">
-                  {job.matchScore}
+                  {job.matchScore}%
                 </div>
                 <div className="text-sm text-gray-400">Match</div>
               </div>
@@ -164,7 +266,7 @@ export default function JobMatchesPage() {
               </div>
               <div className="flex items-center gap-2">
                 <DollarSign size={16} />
-                {job.salary}
+                {formatSalary(job.salary)}
               </div>
               <div className="flex items-center gap-2">
                 <Clock size={16} />
@@ -172,11 +274,11 @@ export default function JobMatchesPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Clock size={16} />
-                {job.date}
+                {formatDate(job.postedDate)}
               </div>
               <div className="flex items-center gap-2">
                 <Users size={16} />
-                {job.applicants}
+                {job.applicantCount} applicants
               </div>
             </div>
 
@@ -213,22 +315,24 @@ export default function JobMatchesPage() {
             </div>
 
             {/* Skills to Learn */}
-            <div className="mb-6">
-              <h3 className="text-sm font-medium flex items-center gap-2 mb-2">
-                <AlertCircle size={16} className="text-yellow-400" />
-                Skills to Learn ({job.skillsToLearn.length})
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {job.skillsToLearn.map((skill) => (
-                  <span
-                    key={skill}
-                    className="rounded-full bg-yellow-600/20 border border-yellow-600/50 px-3 py-1 text-xs text-yellow-400"
-                  >
-                    {skill}
-                  </span>
-                ))}
+            {job.missingSkills.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-medium flex items-center gap-2 mb-2">
+                  <AlertCircle size={16} className="text-yellow-400" />
+                  Skills to Learn ({job.missingSkills.length})
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {job.missingSkills.map((skill) => (
+                    <span
+                      key={skill}
+                      className="rounded-full bg-yellow-600/20 border border-yellow-600/50 px-3 py-1 text-xs text-yellow-400"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-3">
@@ -238,7 +342,7 @@ export default function JobMatchesPage() {
               <Button
                 variant="outline"
                 className="border-gray-700 bg-transparent"
-                onClick={() => setSelectedJob(job.id)}
+                onClick={() => setSelectedJob(job.jobId)}
               >
                 View Details
               </Button>
@@ -247,13 +351,32 @@ export default function JobMatchesPage() {
         ))}
       </div>
 
-      <JobDetailsModal
-        job={
-          filteredJobs.find((job) => job.id === selectedJob) || filteredJobs[0]
-        }
-        isOpen={selectedJob !== null}
-        onClose={() => setSelectedJob(null)}
-      />
+      {selectedJob && (
+        <JobDetailsModal
+          job={(() => {
+            const job = jobs.find((j) => j.jobId === selectedJob);
+            if (!job) return null;
+            return {
+              id: parseInt(job.jobId) || 1,
+              title: job.title,
+              company: job.company,
+              location: job.location,
+              salary: formatSalary(job.salary),
+              type: job.type,
+              date: formatDate(job.postedDate),
+              applicants: `${job.applicantCount} applicants`,
+              description: job.description,
+              matchScore: job.matchScore,
+              matchType: job.matchType,
+              compatibility: job.compatibility,
+              matchingSkills: job.matchingSkills,
+              skillsToLearn: job.missingSkills,
+            };
+          })()}
+          isOpen={selectedJob !== null}
+          onClose={() => setSelectedJob(null)}
+        />
+      )}
     </div>
   );
 }

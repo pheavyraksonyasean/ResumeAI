@@ -9,23 +9,66 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ArrowLeftIcon } from "@/components/icons";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function SignUp() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const [userType, setUserType] = useState<"seeker" | "recruiter">("seeker");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement registration logic
-    console.log("Sign up with:", { email, password, userType });
+    setError("");
+    setSuccess("");
+    setIsLoading(true);
 
-    // Redirect based on user type
-    if (userType === "seeker") {
-      router.push("/dashboard/upload");
-    } else if (userType === "recruiter") {
-      router.push("/recruiter/postings");
+    try {
+      const response = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+          role: userType === "seeker" ? "candidate" : "recruiter",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || "Something went wrong");
+        setIsLoading(false);
+        return;
+      }
+
+      // Show success message for email verification
+      if (data.requiresVerification) {
+        setSuccess(data.message);
+        setIsLoading(false);
+        return;
+      }
+
+      // Refresh the auth context so dashboard can see the user
+      await refreshUser();
+
+      // Redirect based on selected user type
+      if (userType === "recruiter") {
+        router.push("/recruiter/postings");
+      } else {
+        router.push("/dashboard/upload");
+      }
+    } catch (err) {
+      setError("An error occurred. Please try again.");
+      setIsLoading(false);
     }
   };
 
@@ -54,6 +97,48 @@ export default function SignUp() {
           </div>
 
           <form onSubmit={handleSignUp} className="space-y-6">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/50 text-red-500 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="bg-green-500/10 border border-green-500/50 text-green-500 px-4 py-3 rounded-lg text-sm">
+                <div className="flex items-center gap-2 mb-2">
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <span className="font-medium">Check your email!</span>
+                </div>
+                {success}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Name
+              </label>
+              <Input
+                type="text"
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="bg-zinc-900 border-zinc-700 text-white placeholder-gray-500"
+                required
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Email
@@ -114,9 +199,10 @@ export default function SignUp() {
 
             <Button
               type="submit"
-              className="w-full bg-green-500 hover:bg-green-600 text-black font-medium py-6"
+              disabled={isLoading}
+              className="w-full bg-green-500 hover:bg-green-600 text-black font-medium py-6 disabled:opacity-50"
             >
-              Sign Up
+              {isLoading ? "Creating account..." : "Sign Up"}
             </Button>
           </form>
 

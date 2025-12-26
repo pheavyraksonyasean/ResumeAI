@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Brain, Loader2 } from "lucide-react";
 import type React from "react";
-import { Brain, Icon } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEffect } from "react";
+
 export default function RecruiterLayout({
   children,
 }: {
@@ -12,10 +14,29 @@ export default function RecruiterLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, loading, logout } = useAuth();
 
-  const handleLogout = () => {
-    router.push("/");
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/auth/signin");
+    }
+  }, [loading, user, router]);
+
+  const handleLogout = async () => {
+    await logout();
   };
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-black text-white flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-green-500" />
+      </main>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   const tabs = [
     { name: "Job Postings", href: "/recruiter/postings" },
@@ -36,7 +57,7 @@ export default function RecruiterLayout({
           </div>
           <div className="flex items-center gap-4">
             <div className="text-sm text-gray-400">
-              Welcome, <span className="text-white">username</span>
+              Welcome, <span className="text-white">{user.name}</span>
             </div>
             <button
               onClick={handleLogout}

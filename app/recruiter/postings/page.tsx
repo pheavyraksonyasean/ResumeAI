@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { MapPin, DollarSign, Users, Edit, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { MapPin, DollarSign, Users, Edit, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PostJobModal, type JobFormData } from "@/components/post-job-modal";
 
 interface Job {
-  id: number;
+  id: string;
   title: string;
   postedDate: string;
   location: string;
@@ -19,82 +19,100 @@ interface Job {
 export default function JobPostingsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
-  const [jobPostings, setJobPostings] = useState<Job[]>([
-    {
-      id: 1,
-      title: "Senior Frontend Developer",
-      postedDate: "12/20/2024",
-      location: "San Francisco, CA",
-      salary: "$120k - $160k",
-      matchedCandidates: 24,
-      description:
-        "We are looking for an experienced frontend developer to join our team and build amazing user experiences...",
-      requiredSkills: ["React", "TypeScript", "CSS", "Git"],
-    },
-    {
-      id: 2,
-      title: "Full Stack Developer",
-      postedDate: "12/18/2024",
-      location: "Remote",
-      salary: "$100k - $140k",
-      matchedCandidates: 18,
-      description: "Join our team to build scalable applications...",
-      requiredSkills: ["React", "Node.js", "MongoDB", "AWS"],
-    },
-    {
-      id: 3,
-      title: "Backend Engineer",
-      postedDate: "12/15/2024",
-      location: "New York, NY",
-      salary: "$110k - $150k",
-      matchedCandidates: 31,
-      description:
-        "Looking for a backend engineer to join our infrastructure team...",
-      requiredSkills: ["Python", "Django", "PostgreSQL", "Docker"],
-    },
-  ]);
+  const [jobPostings, setJobPostings] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handlePostJob = (formData: JobFormData) => {
-    if (editingJob) {
-      setJobPostings((prev) =>
-        prev.map((job) =>
-          job.id === editingJob.id
-            ? {
-                ...job,
-                title: formData.title,
-                location: formData.location,
-                salary: formData.salary,
-                description: formData.description,
-                requiredSkills: formData.requiredSkills
-                  .split(",")
-                  .map((skill) => skill.trim())
-                  .filter((skill) => skill.length > 0),
-              }
-            : job
-        )
-      );
-    } else {
-      const newJob: Job = {
-        id: Math.max(...jobPostings.map((j) => j.id), 0) + 1,
-        title: formData.title,
-        postedDate: new Date().toLocaleDateString("en-US", {
-          month: "2-digit",
-          day: "2-digit",
-          year: "numeric",
-        }),
-        location: formData.location,
-        salary: formData.salary,
-        matchedCandidates: 0,
-        description: formData.description,
-        requiredSkills: formData.requiredSkills
-          .split(",")
-          .map((skill) => skill.trim())
-          .filter((skill) => skill.length > 0),
-      };
+  // Fetch jobs on mount
+  useEffect(() => {
+    fetchJobs();
+  }, []);
 
-      setJobPostings((prev) => [newJob, ...prev]);
+  const fetchJobs = async () => {
+    try {
+      const response = await fetch("/api/jobs");
+      const data = await response.json();
+
+      if (data.success) {
+        const formattedJobs = data.jobs.map((job: any) => ({
+          id: job.id,
+          title: job.title,
+          postedDate: new Date(job.createdAt).toLocaleDateString("en-US", {
+            month: "2-digit",
+            day: "2-digit",
+            year: "numeric",
+          }),
+          location: job.location,
+          salary:
+            job.salary?.min && job.salary?.max
+              ? `$${Math.floor(job.salary.min / 1000)}k - $${Math.floor(
+                  job.salary.max / 1000
+                )}k`
+              : "Not specified",
+          matchedCandidates: job.applicants || 0,
+          description: job.description,
+          requiredSkills: job.requirements || [],
+        }));
+        setJobPostings(formattedJobs);
+      }
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+    } finally {
+      setLoading(false);
     }
-    handleCloseModal();
+  };
+
+  const handlePostJob = async (formData: JobFormData) => {
+    setSubmitting(true);
+    try {
+      if (editingJob) {
+        // Update existing job
+        const response = await fetch(`/api/jobs/${editingJob.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: formData.title,
+            location: formData.location,
+            salary: formData.salary,
+            description: formData.description,
+            requiredSkills: formData.requiredSkills,
+          }),
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          await fetchJobs(); // Refresh the list
+        } else {
+          alert(data.message || "Failed to update job");
+        }
+      } else {
+        // Create new job
+        const response = await fetch("/api/jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: formData.title,
+            location: formData.location,
+            salary: formData.salary,
+            description: formData.description,
+            requiredSkills: formData.requiredSkills,
+          }),
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          await fetchJobs(); // Refresh the list
+        } else {
+          alert(data.message || "Failed to post job");
+        }
+      }
+      handleCloseModal();
+    } catch (error) {
+      console.error("Error saving job:", error);
+      alert("An error occurred. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleEditJob = (job: Job) => {
@@ -102,9 +120,25 @@ export default function JobPostingsPage() {
     setIsModalOpen(true);
   };
 
-  const handleDeleteJob = (id: number) => {
-    if (confirm("Are you sure you want to delete this job posting?")) {
-      setJobPostings((prev) => prev.filter((job) => job.id !== id));
+  const handleDeleteJob = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this job posting?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/jobs/${id}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setJobPostings((prev) => prev.filter((job) => job.id !== id));
+      } else {
+        alert(data.message || "Failed to delete job");
+      }
+    } catch (error) {
+      console.error("Error deleting job:", error);
+      alert("An error occurred. Please try again.");
     }
   };
 
@@ -133,81 +167,103 @@ export default function JobPostingsPage() {
         </Button>
       </div>
 
-      {/* Job Postings */}
-      <div className="space-y-6">
-        {jobPostings.map((job) => (
-          <div
-            key={job.id}
-            className="rounded-lg border border-gray-800 bg-gray-900/50 p-6"
+      {/* Loading State */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-green-500" />
+        </div>
+      ) : jobPostings.length === 0 ? (
+        <div className="text-center py-20">
+          <p className="text-gray-400 text-lg mb-4">No job postings yet</p>
+          <Button
+            className="bg-green-600 hover:bg-green-700"
+            onClick={handleOpenNewJobModal}
           >
-            {/* Job Header */}
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold mb-1">{job.title}</h2>
-                <div className="flex items-center gap-4 text-sm text-gray-400 mb-3">
-                  <span>Posted on</span>
-                  <span>{job.postedDate}</span>
+            Post Your First Job
+          </Button>
+        </div>
+      ) : (
+        /* Job Postings */
+        <div className="space-y-6">
+          {jobPostings.map((job) => (
+            <div
+              key={job.id}
+              className="rounded-lg border border-gray-800 bg-gray-900/50 p-6"
+            >
+              {/* Job Header */}
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold mb-1">{job.title}</h2>
+                  <div className="flex items-center gap-4 text-sm text-gray-400 mb-3">
+                    <span>Posted on</span>
+                    <span>{job.postedDate}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEditJob(job)}
+                    className="p-2 text-gray-400 hover:text-white transition"
+                    title="Edit job"
+                  >
+                    <Edit size={20} />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteJob(job.id)}
+                    className="p-2 text-gray-400 hover:text-red-400 transition"
+                    title="Delete job"
+                  >
+                    <Trash2 size={20} />
+                  </button>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleEditJob(job)}
-                  className="p-2 text-gray-400 hover:text-white transition"
-                  title="Edit job"
-                >
-                  <Edit size={20} />
-                </button>
-                <button
-                  onClick={() => handleDeleteJob(job.id)}
-                  className="p-2 text-gray-400 hover:text-red-400 transition"
-                  title="Delete job"
-                >
-                  <Trash2 size={20} />
-                </button>
+
+              {/* Job Details */}
+              <div className="flex flex-wrap gap-6 mb-4 text-sm text-gray-400">
+                <div className="flex items-center gap-2">
+                  <MapPin size={16} />
+                  {job.location}
+                </div>
+                <div className="flex items-center gap-2">
+                  <DollarSign size={16} />
+                  {job.salary}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Users size={16} />
+                  {job.matchedCandidates} matched candidates
+                </div>
               </div>
+
+              {/* Description */}
+              <p className="text-gray-300 mb-4">{job.description}</p>
+
+              {/* Required Skills */}
+              <div className="mb-6">
+                <p className="text-sm text-gray-400 mb-2">Required Skills:</p>
+                <div className="flex flex-wrap gap-2">
+                  {job.requiredSkills.map((skill) => (
+                    <span
+                      key={skill}
+                      className="rounded-md bg-gray-800 px-3 py-1 text-sm text-gray-300 border border-gray-700"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <button
+                onClick={() =>
+                  (window.location.href = `/recruiter/candidates?job=${job.id}`)
+                }
+                className="w-full rounded-lg bg-gray-800 hover:bg-gray-700 transition py-3 text-center font-medium"
+              >
+                View Matched Candidates
+              </button>
             </div>
-
-            {/* Job Details */}
-            <div className="flex flex-wrap gap-6 mb-4 text-sm text-gray-400">
-              <div className="flex items-center gap-2">
-                <MapPin size={16} />
-                {job.location}
-              </div>
-              <div className="flex items-center gap-2">
-                <DollarSign size={16} />
-                {job.salary}
-              </div>
-              <div className="flex items-center gap-2">
-                <Users size={16} />
-                {job.matchedCandidates} matched candidates
-              </div>
-            </div>
-
-            {/* Description */}
-            <p className="text-gray-300 mb-4">{job.description}</p>
-
-            {/* Required Skills */}
-            <div className="mb-6">
-              <p className="text-sm text-gray-400 mb-2">Required Skills:</p>
-              <div className="flex flex-wrap gap-2">
-                {job.requiredSkills.map((skill) => (
-                  <span
-                    key={skill}
-                    className="rounded-md bg-gray-800 px-3 py-1 text-sm text-gray-300 border border-gray-700"
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Actions */}
-            <button className="w-full rounded-lg bg-gray-800 hover:bg-gray-700 transition py-3 text-center font-medium">
-              View Matched Candidates ({job.matchedCandidates})
-            </button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Post Job Modal */}
       <PostJobModal

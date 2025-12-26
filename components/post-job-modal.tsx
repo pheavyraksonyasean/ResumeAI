@@ -10,7 +10,7 @@ interface PostJobModalProps {
   onClose: () => void;
   onSubmit: (jobData: JobFormData) => void;
   editingJob?: {
-    id: number;
+    id: string | number;
     title: string;
     location: string;
     salary: string;

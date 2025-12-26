@@ -2,26 +2,51 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Brain, Loader2, Lock } from "lucide-react";
 import type React from "react";
-import { Brain, Icon } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEffect } from "react";
+import { ResumeProvider, useResume } from "@/contexts/ResumeContext";
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function DashboardContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, loading: authLoading, logout } = useAuth();
+  const { resume, loading: resumeLoading } = useResume();
 
-  const handleLogout = () => {
-    router.push("/");
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/auth/signin");
+    }
+  }, [authLoading, user, router]);
+
+  // Redirect from analysis if no resume
+  useEffect(() => {
+    if (!resumeLoading && !resume && pathname === "/dashboard/analysis") {
+      router.push("/dashboard/upload");
+    }
+  }, [resumeLoading, resume, pathname, router]);
+
+  const handleLogout = async () => {
+    await logout();
   };
 
+  if (authLoading || resumeLoading) {
+    return (
+      <main className="min-h-screen bg-black text-white flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-green-500" />
+      </main>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
   const tabs = [
-    { name: "Upload Resume", href: "/dashboard/upload" },
-    { name: "Analysis", href: "/dashboard/analysis" },
-    { name: "Job Matches", href: "/dashboard/matches" },
+    { name: "Upload Resume", href: "/dashboard/upload", requiresResume: false },
+    { name: "Analysis", href: "/dashboard/analysis", requiresResume: true },
+    { name: "Job Matches", href: "/dashboard/matches", requiresResume: false },
   ];
 
   return (
@@ -37,7 +62,7 @@ export default function DashboardLayout({
           </div>
           <div className="flex items-center gap-4">
             <div className="text-sm text-gray-400">
-              Welcome, <span className="text-white">username</span>
+              Welcome, <span className="text-white">{user.name}</span>
             </div>
             <button
               onClick={handleLogout}
@@ -55,6 +80,21 @@ export default function DashboardLayout({
         <div className="mx-auto flex max-w-8xl px-6">
           {tabs.map((tab) => {
             const isActive = pathname === tab.href;
+            const isDisabled = tab.requiresResume && !resume;
+
+            if (isDisabled) {
+              return (
+                <div
+                  key={tab.href}
+                  className="flex items-center gap-2 border-b-2 border-transparent px-4 py-4 text-gray-600 cursor-not-allowed"
+                  title="Upload a resume first to access this feature"
+                >
+                  <Lock size={14} />
+                  {tab.name}
+                </div>
+              );
+            }
+
             return (
               <Link
                 key={tab.href}
@@ -76,5 +116,17 @@ export default function DashboardLayout({
       {/* Page Content */}
       <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
     </main>
+  );
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <ResumeProvider>
+      <DashboardContent>{children}</DashboardContent>
+    </ResumeProvider>
   );
 }

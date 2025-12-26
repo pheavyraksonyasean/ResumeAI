@@ -9,23 +9,59 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ArrowLeftIcon } from "@/components/icons";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function SignIn() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const [userType, setUserType] = useState<"seeker" | "recruiter">("seeker");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement authentication logic
-    console.log("Sign in with:", { email, password, userType });
+    setError("");
+    setIsLoading(true);
 
-    // Redirect based on user type
-    if (userType === "seeker") {
-      router.push("/dashboard/upload");
-    } else if (userType === "recruiter") {
-      router.push("/recruiter/postings");
+    try {
+      const response = await fetch("/api/auth/signin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || "Invalid credentials");
+        setIsLoading(false);
+        return;
+      }
+
+      // Refresh the auth context so dashboard can see the user
+      await refreshUser();
+
+      // Redirect based on selected user type (what user chose on form)
+      // This allows users to switch between dashboards if they have multiple roles
+      if (userType === "seeker") {
+        router.push("/dashboard/upload");
+      } else if (userType === "recruiter") {
+        router.push("/recruiter/postings");
+      } else {
+        // Fallback: use the role from backend
+        if (data.user.role === "candidate") {
+          router.push("/dashboard/upload");
+        } else {
+          router.push("/recruiter/postings");
+        }
+      }
+    } catch (err) {
+      setError("An error occurred. Please try again.");
+      setIsLoading(false);
     }
   };
 
@@ -52,6 +88,12 @@ export default function SignIn() {
           </div>
 
           <form onSubmit={handleSignIn} className="space-y-6">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/50 text-red-500 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Email
@@ -112,9 +154,10 @@ export default function SignIn() {
 
             <Button
               type="submit"
-              className="w-full bg-green-500 hover:bg-green-600 text-black font-medium py-6"
+              disabled={isLoading}
+              className="w-full bg-green-500 hover:bg-green-600 text-black font-medium py-6 disabled:opacity-50"
             >
-              Sign In
+              {isLoading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
 
