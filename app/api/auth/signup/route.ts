@@ -11,8 +11,14 @@ const JWT_SECRET =
 const SKIP_EMAIL_VERIFICATION = process.env.SKIP_EMAIL_VERIFICATION === "true";
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
+    console.log("[Signup] Starting...");
+    
+    const dbStart = Date.now();
     await dbConnect();
+    console.log(`[Signup] DB Connect: ${Date.now() - dbStart}ms`);
 
     const { email, password, name, role } = await request.json();
 
@@ -59,14 +65,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Hash password
+    const bcryptStart = Date.now();
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+    console.log(`[Signup] bcrypt hash: ${Date.now() - bcryptStart}ms`);
 
     // Generate verification token
     const verificationToken = crypto.randomBytes(32).toString("hex");
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     // Create user - if skipping verification, mark as verified
+    const createStart = Date.now();
     const user = await User.create({
       email: email.toLowerCase(),
       password: hashedPassword,
@@ -80,6 +89,7 @@ export async function POST(request: NextRequest) {
         ? null
         : verificationExpires,
     });
+    console.log(`[Signup] User create: ${Date.now() - createStart}ms`);
 
     // If skipping email verification (development mode), auto-login
     if (SKIP_EMAIL_VERIFICATION) {
@@ -111,12 +121,15 @@ export async function POST(request: NextRequest) {
         path: "/",
       });
 
+      console.log(`[Signup] Total time: ${Date.now() - startTime}ms`);
       return response;
     }
 
     // Send verification email
     try {
+      const emailStart = Date.now();
       await sendVerificationEmail(user.email, verificationToken);
+      console.log(`[Signup] Send email: ${Date.now() - emailStart}ms`);
     } catch (emailError) {
       console.error("Failed to send verification email:", emailError);
       // Still return success but with a warning

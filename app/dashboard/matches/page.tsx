@@ -372,14 +372,16 @@ export default function JobMatchesPage() {
 
             {/* Actions */}
             <div className="flex gap-3">
-              <Button 
+              <Button
                 className={`flex-1 ${
                   appliedJobs.has(job.jobId)
                     ? "bg-gray-600 hover:bg-gray-600 cursor-not-allowed"
                     : "bg-green-600 hover:bg-green-700"
                 }`}
                 onClick={() => applyToJob(job.jobId)}
-                disabled={appliedJobs.has(job.jobId) || applyingTo === job.jobId}
+                disabled={
+                  appliedJobs.has(job.jobId) || applyingTo === job.jobId
+                }
               >
                 {applyingTo === job.jobId ? (
                   <>

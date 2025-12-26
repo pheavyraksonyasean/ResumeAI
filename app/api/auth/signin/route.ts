@@ -9,8 +9,14 @@ const JWT_SECRET =
 const SKIP_EMAIL_VERIFICATION = process.env.SKIP_EMAIL_VERIFICATION === "true";
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
+    console.log("[Signin] Starting...");
+    
+    const dbStart = Date.now();
     await dbConnect();
+    console.log(`[Signin] DB Connect: ${Date.now() - dbStart}ms`);
 
     const { email, password } = await request.json();
 
@@ -23,7 +29,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Find user by email
+    const findStart = Date.now();
     const user = await User.findOne({ email: email.toLowerCase() });
+    console.log(`[Signin] Find user: ${Date.now() - findStart}ms`);
+    
     if (!user) {
       return NextResponse.json(
         { success: false, message: "Invalid credentials" },
@@ -32,7 +41,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check password
+    const bcryptStart = Date.now();
     const isMatch = await bcrypt.compare(password, user.password);
+    console.log(`[Signin] bcrypt compare: ${Date.now() - bcryptStart}ms`);
     if (!isMatch) {
       return NextResponse.json(
         { success: false, message: "Invalid credentials" },
@@ -84,6 +95,7 @@ export async function POST(request: NextRequest) {
       path: "/",
     });
 
+    console.log(`[Signin] Total time: ${Date.now() - startTime}ms`);
     return response;
   } catch (error) {
     console.error("Signin error:", error);

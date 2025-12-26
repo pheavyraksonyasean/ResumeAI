@@ -55,7 +55,9 @@ export async function POST(
     const userObjectId = new mongoose.Types.ObjectId(decoded.userId);
 
     // Check if already applied
-    if (job.applicants.some((applicantId) => applicantId.equals(userObjectId))) {
+    if (
+      job.applicants.some((applicantId) => applicantId.equals(userObjectId))
+    ) {
       return NextResponse.json(
         { success: false, message: "You have already applied to this job" },
         { status: 400 }

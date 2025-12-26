@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     // Get notifications for this user
-    const notifications = await Notification.find({ recipientId: decoded.userId })
+    const notifications = await Notification.find({
+      recipientId: decoded.userId,
+    })
       .sort({ createdAt: -1 })
       .limit(50)
       .lean();
@@ -90,9 +92,9 @@ export async function PUT(request: NextRequest) {
     } else if (notificationIds && notificationIds.length > 0) {
       // Mark specific notifications as read
       await Notification.updateMany(
-        { 
-          _id: { $in: notificationIds }, 
-          recipientId: decoded.userId 
+        {
+          _id: { $in: notificationIds },
+          recipientId: decoded.userId,
         },
         { isRead: true }
       );

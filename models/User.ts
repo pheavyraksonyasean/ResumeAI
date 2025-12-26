@@ -20,6 +20,7 @@ const UserSchema: Schema = new Schema(
       unique: true,
       lowercase: true,
       trim: true,
+      index: true, // Add index for faster lookups
     },
     password: {
       type: String,

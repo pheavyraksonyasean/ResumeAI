@@ -52,7 +52,10 @@ export function NotificationDropdown() {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -107,7 +110,7 @@ export function NotificationDropdown() {
       `https://mail.google.com/mail/?view=cm&fs=1&to=${notification.senderEmail}&su=${subject}&body=${body}`,
       "_blank"
     );
-    
+
     // Mark as read after contacting
     if (!notification.isRead) {
       markAsRead(notification.id);
@@ -184,7 +187,7 @@ export function NotificationDropdown() {
                     {!notification.isRead && (
                       <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
                     )}
-                    
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <p className="font-medium text-white truncate">
@@ -194,11 +197,11 @@ export function NotificationDropdown() {
                           {formatTimeAgo(notification.createdAt)}
                         </span>
                       </div>
-                      
+
                       <p className="text-sm text-gray-400 mb-2">
                         {notification.message}
                       </p>
-                      
+
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleContactCandidate(notification)}
@@ -207,7 +210,7 @@ export function NotificationDropdown() {
                           <Mail size={14} />
                           Contact via Gmail
                         </button>
-                        
+
                         {!notification.isRead && (
                           <button
                             onClick={() => markAsRead(notification.id)}
