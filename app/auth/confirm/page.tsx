@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon } from "@/components/icons";
 
-export default function ConfirmEmail() {
+function ConfirmEmailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
@@ -167,5 +167,29 @@ export default function ConfirmEmail() {
         </Card>
       </div>
     </main>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <main className="min-h-screen bg-black flex flex-col">
+      <div className="flex items-center gap-2 p-6 text-gray-400">
+        <span>Back</span>
+      </div>
+      <div className="flex-1 flex items-center justify-center px-4 py-12">
+        <Card className="bg-zinc-950 border-zinc-800 w-full max-w-md p-8 text-center">
+          <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading...</p>
+        </Card>
+      </div>
+    </main>
+  );
+}
+
+export default function ConfirmEmail() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ConfirmEmailContent />
+    </Suspense>
   );
 }

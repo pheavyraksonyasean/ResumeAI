@@ -6,6 +6,7 @@ import { LogOut, Brain, Loader2 } from "lucide-react";
 import type React from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
+import { NotificationDropdown } from "@/components/notification-dropdown";
 
 export default function RecruiterLayout({
   children,
@@ -59,6 +60,7 @@ export default function RecruiterLayout({
             <div className="text-sm text-gray-400">
               Welcome, <span className="text-white">{user.name}</span>
             </div>
+            <NotificationDropdown />
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 text-gray-400 hover:text-white transition"

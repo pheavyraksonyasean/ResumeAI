@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { Download, Mail, Loader2, Users, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -23,7 +23,7 @@ interface Candidate {
   atsScore: number;
 }
 
-export default function MatchedCandidatesPage() {
+function MatchedCandidatesContent() {
   const searchParams = useSearchParams();
   const jobIdFromUrl = searchParams.get("job");
 
@@ -100,6 +100,62 @@ export default function MatchedCandidatesPage() {
       console.error("Error fetching candidates:", error);
     } finally {
       setLoadingCandidates(false);
+    }
+  };
+
+  // Handle contact candidate - opens Gmail directly
+  const handleContactCandidate = (candidate: Candidate) => {
+    const subject = encodeURIComponent(
+      `Regarding your application - ${
+        jobs.find((j) => j.id === selectedJob)?.title || "Job Opportunity"
+      }`
+    );
+    const body = encodeURIComponent(
+      `Hi ${candidate.userName},\n\nI came across your profile and would like to discuss a potential opportunity with you.\n\nBest regards`
+    );
+    // Open Gmail compose directly
+    window.open(
+      `https://mail.google.com/mail/?view=cm&fs=1&to=${candidate.userEmail}&su=${subject}&body=${body}`,
+      "_blank"
+    );
+  };
+
+  // Handle view resume - downloads or opens the PDF
+  const handleViewResume = async (candidate: Candidate) => {
+    try {
+      const response = await fetch(
+        `/api/candidates/${candidate.userId}/resume`
+      );
+      const data = await response.json();
+
+      if (data.success && data.resume) {
+        // Create a blob from base64 data and download
+        const byteCharacters = atob(data.resume.fileData);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], {
+          type: data.resume.mimeType || "application/pdf",
+        });
+
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download =
+          data.resume.fileName || `${candidate.userName}_resume.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else {
+        alert(data.message || "Failed to fetch resume");
+      }
+    } catch (error) {
+      console.error("Error fetching resume:", error);
+      alert("Failed to fetch resume. Please try again.");
     }
   };
 
@@ -295,11 +351,15 @@ export default function MatchedCandidatesPage() {
 
               {/* Actions */}
               <div className="flex gap-3">
-                <Button className="flex-1 bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2">
+                <Button
+                  onClick={() => handleContactCandidate(candidate)}
+                  className="flex-1 bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2"
+                >
                   <Mail size={18} />
                   Contact Candidate
                 </Button>
                 <Button
+                  onClick={() => handleViewResume(candidate)}
                   variant="outline"
                   className="border-gray-700 bg-transparent flex items-center justify-center gap-2"
                 >
@@ -312,5 +372,21 @@ export default function MatchedCandidatesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="w-8 h-8 animate-spin text-green-500" />
+    </div>
+  );
+}
+
+export default function MatchedCandidatesPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <MatchedCandidatesContent />
+    </Suspense>
   );
 }

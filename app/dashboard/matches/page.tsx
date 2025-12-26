@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Loader2,
   FileText,
+  CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -60,6 +61,8 @@ export default function JobMatchesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [noResume, setNoResume] = useState(false);
+  const [appliedJobs, setAppliedJobs] = useState<Set<string>>(new Set());
+  const [applyingTo, setApplyingTo] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMatches();
@@ -97,6 +100,39 @@ export default function JobMatchesPage() {
       setError("Failed to fetch job matches");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const applyToJob = async (jobId: string) => {
+    try {
+      setApplyingTo(jobId);
+      const response = await fetch(`/api/jobs/${jobId}/apply`, {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setAppliedJobs((prev) => new Set([...prev, jobId]));
+        // Update applicant count in the UI
+        setJobs((prevJobs) =>
+          prevJobs.map((job) =>
+            job.jobId === jobId
+              ? { ...job, applicantCount: job.applicantCount + 1 }
+              : job
+          )
+        );
+      } else {
+        if (data.message?.includes("already applied")) {
+          setAppliedJobs((prev) => new Set([...prev, jobId]));
+        } else {
+          alert(data.message || "Failed to apply");
+        }
+      }
+    } catch (err) {
+      console.error("Error applying to job:", err);
+      alert("Failed to apply to job");
+    } finally {
+      setApplyingTo(null);
     }
   };
 
@@ -336,8 +372,28 @@ export default function JobMatchesPage() {
 
             {/* Actions */}
             <div className="flex gap-3">
-              <Button className="flex-1 bg-green-600 hover:bg-green-700">
-                Apply Now
+              <Button 
+                className={`flex-1 ${
+                  appliedJobs.has(job.jobId)
+                    ? "bg-gray-600 hover:bg-gray-600 cursor-not-allowed"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
+                onClick={() => applyToJob(job.jobId)}
+                disabled={appliedJobs.has(job.jobId) || applyingTo === job.jobId}
+              >
+                {applyingTo === job.jobId ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Applying...
+                  </>
+                ) : appliedJobs.has(job.jobId) ? (
+                  <>
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Applied
+                  </>
+                ) : (
+                  "Apply Now"
+                )}
               </Button>
               <Button
                 variant="outline"
@@ -351,32 +407,32 @@ export default function JobMatchesPage() {
         ))}
       </div>
 
-      {selectedJob && (
-        <JobDetailsModal
-          job={(() => {
-            const job = jobs.find((j) => j.jobId === selectedJob);
-            if (!job) return null;
-            return {
-              id: parseInt(job.jobId) || 1,
-              title: job.title,
-              company: job.company,
-              location: job.location,
-              salary: formatSalary(job.salary),
-              type: job.type,
-              date: formatDate(job.postedDate),
-              applicants: `${job.applicantCount} applicants`,
-              description: job.description,
-              matchScore: job.matchScore,
-              matchType: job.matchType,
-              compatibility: job.compatibility,
-              matchingSkills: job.matchingSkills,
-              skillsToLearn: job.missingSkills,
-            };
-          })()}
-          isOpen={selectedJob !== null}
-          onClose={() => setSelectedJob(null)}
-        />
-      )}
+      {selectedJob &&
+        (() => {
+          const job = jobs.find((j) => j.jobId === selectedJob);
+          if (!job) return null;
+          return (
+            <JobDetailsModal
+              job={{
+                id: parseInt(job.jobId) || 1,
+                title: job.title,
+                company: job.company,
+                location: job.location,
+                salary: formatSalary(job.salary),
+                type: job.type,
+                date: formatDate(job.postedDate),
+                applicants: `${job.applicantCount} applicants`,
+                description: job.description,
+                matchScore: job.matchScore,
+                compatibility: job.compatibility,
+                matchingSkills: job.matchingSkills,
+                skillsToLearn: job.missingSkills,
+              }}
+              isOpen={true}
+              onClose={() => setSelectedJob(null)}
+            />
+          );
+        })()}
     </div>
   );
 }
